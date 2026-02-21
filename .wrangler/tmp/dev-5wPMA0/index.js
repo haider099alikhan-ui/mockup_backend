@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-XOjMyl/strip-cf-connecting-ip-header.js
+// .wrangler/tmp/bundle-EBX8Ui/strip-cf-connecting-ip-header.js
 function stripCfConnectingIPHeader(input, init) {
   const request = new Request(input, init);
   request.headers.delete("CF-Connecting-IP");
@@ -13967,12 +13967,29 @@ if (shouldShowDeprecationWarning())
   console.warn("\u26A0\uFE0F  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217");
 
 // src/lib/supabase.js
+function getEnvValue(env, key) {
+  return env && env[key] || (typeof process !== "undefined" ? process.env[key] : void 0);
+}
+__name(getEnvValue, "getEnvValue");
 function createSupabaseAdmin(env) {
-  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, {
+  const url = getEnvValue(env, "SUPABASE_URL");
+  const key = getEnvValue(env, "SUPABASE_SERVICE_KEY");
+  return createClient(url, key, {
     auth: { persistSession: false }
   });
 }
 __name(createSupabaseAdmin, "createSupabaseAdmin");
+function createSupabaseClient(env, token) {
+  const url = getEnvValue(env, "SUPABASE_URL");
+  const key = getEnvValue(env, "SUPABASE_SERVICE_KEY");
+  return createClient(url, key, {
+    auth: { persistSession: false },
+    global: {
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  });
+}
+__name(createSupabaseClient, "createSupabaseClient");
 
 // src/middleware/auth.js
 async function authMiddleware(c, next) {
@@ -14153,11 +14170,161 @@ exports.post("/track", async (c) => {
 });
 var exports_default = exports;
 
+// src/routes/documents.js
+var documents = new Hono2();
+documents.get("/", async (c) => {
+  try {
+    const user2 = c.get("user");
+    const supabase = createSupabaseAdmin(c.env);
+    const { data, error } = await supabase.from("hosted_documents").select("*").eq("user_id", user2.id).order("created_at", { ascending: false });
+    if (error)
+      throw error;
+    return c.json({ documents: data });
+  } catch (error) {
+    console.error("Fetch documents error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+});
+documents.get("/:id", async (c) => {
+  try {
+    const user2 = c.get("user");
+    const id = c.req.param("id");
+    const supabase = createSupabaseAdmin(c.env);
+    const { data, error } = await supabase.from("hosted_documents").select("*").eq("id", id).eq("user_id", user2.id).single();
+    if (error)
+      throw error;
+    if (!data)
+      return c.json({ error: "Not found" }, 404);
+    return c.json({ document: data });
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+documents.post("/", async (c) => {
+  try {
+    const user2 = c.get("user");
+    const body = await c.req.json();
+    const supabase = createSupabaseAdmin(c.env);
+    const { type, title, content, is_public = false } = body;
+    if (type === "app_ads") {
+      await supabase.from("hosted_documents").delete().eq("user_id", user2.id).eq("type", "app_ads");
+    }
+    const { data, error } = await supabase.from("hosted_documents").insert([{
+      user_id: user2.id,
+      type,
+      title,
+      content,
+      is_public
+    }]).select().single();
+    if (error)
+      throw error;
+    return c.json({ document: data }, 201);
+  } catch (error) {
+    console.error("Create document error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+});
+documents.put("/:id", async (c) => {
+  try {
+    const user2 = c.get("user");
+    const id = c.req.param("id");
+    const body = await c.req.json();
+    const supabase = createSupabaseAdmin(c.env);
+    const { type, title, content, is_public } = body;
+    const updates = {
+      updated_at: (/* @__PURE__ */ new Date()).toISOString(),
+      ...type !== void 0 && { type },
+      ...title !== void 0 && { title },
+      ...content !== void 0 && { content },
+      ...is_public !== void 0 && { is_public }
+    };
+    const { data, error } = await supabase.from("hosted_documents").update(updates).eq("id", id).eq("user_id", user2.id).select().single();
+    if (error)
+      throw error;
+    if (!data)
+      return c.json({ error: "Not found or forbidden" }, 404);
+    return c.json({ document: data });
+  } catch (error) {
+    console.error("Update document error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+});
+documents.delete("/:id", async (c) => {
+  try {
+    const user2 = c.get("user");
+    const id = c.req.param("id");
+    const supabase = createSupabaseAdmin(c.env);
+    const { error } = await supabase.from("hosted_documents").delete().eq("id", id).eq("user_id", user2.id);
+    if (error)
+      throw error;
+    return c.json({ success: true, message: "Document deleted" });
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+var documents_default = documents;
+
+// src/routes/publicDocs.js
+var publicDocs = new Hono2();
+publicDocs.get("/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const supabase = createSupabaseClient(c);
+    const { data: document2, error } = await supabase.from("hosted_documents").select("title, content, type, is_public").eq("id", id).single();
+    if (error || !document2 || !document2.is_public) {
+      return c.html(`
+                <!DOCTYPE html>
+                <html>
+                <head><title>Not Found</title></head>
+                <body style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+                    <h1>404 - Document Not Found</h1>
+                    <p>This document does not exist or has not been made public.</p>
+                </body>
+                </html>
+            `, 404);
+    }
+    if (document2.type === "app_ads") {
+      return c.text(document2.content || "");
+    }
+    return c.html(`
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>${document2.title || "Document"}</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 800px;
+                        margin: 0 auto;
+                        padding: 40px 20px;
+                    }
+                    h1, h2, h3 { color: #111; }
+                    a { color: #2563eb; text-decoration: none; }
+                    a:hover { text-decoration: underline; }
+                </style>
+            </head>
+            <body>
+                ${document2.content || ""}
+            </body>
+            </html>
+        `);
+  } catch (error) {
+    console.error("Public doc serve error:", error);
+    return c.text("Internal Server Error", 500);
+  }
+});
+var publicDocs_default = publicDocs;
+
 // src/index.js
 var app = new Hono2();
 app.use("*", cors({
   origin: (origin, c) => {
-    const allowed = c.env.FRONTEND_URL || "http://localhost:5173";
+    const envVal = c.env && c.env.FRONTEND_URL || (typeof process !== "undefined" ? process.env.FRONTEND_URL : void 0);
+    const allowed = envVal || "http://localhost:5173";
     if (origin === allowed || origin === "http://localhost:5173") {
       return origin;
     }
@@ -14170,12 +14337,15 @@ app.use("*", cors({
 app.get("/api/health", (c) => {
   return c.json({ status: "ok", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
 });
+app.route("/p", publicDocs_default);
 app.use("/api/projects/*", authMiddleware);
 app.use("/api/user/*", authMiddleware);
 app.use("/api/exports/*", authMiddleware);
+app.use("/api/documents/*", authMiddleware);
 app.route("/api/projects", projects_default);
 app.route("/api/user", user_default);
 app.route("/api/exports", exports_default);
+app.route("/api/documents", documents_default);
 app.notFound((c) => {
   return c.json({ error: "Not found" }, 404);
 });
@@ -14226,7 +14396,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-XOjMyl/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-EBX8Ui/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -14258,7 +14428,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-XOjMyl/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-EBX8Ui/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

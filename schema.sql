@@ -93,3 +93,49 @@ CREATE POLICY "Service role full access to profiles"
 CREATE POLICY "Service role full access to projects"
   ON projects FOR ALL
   USING (auth.role() = 'service_role');
+
+-- 7. Hosted Documents (Privacy Policy, Terms, app-ads.txt, DMCA)
+CREATE TABLE IF NOT EXISTS hosted_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('privacy_policy', 'terms', 'dmca', 'app_ads')),
+  title TEXT DEFAULT 'Untitled Document',
+  content TEXT DEFAULT '',
+  is_public BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_hosted_documents_user_id ON hosted_documents(user_id);
+CREATE INDEX IF NOT EXISTS idx_hosted_documents_type ON hosted_documents(type);
+
+-- Row Level Security for hosted_documents
+ALTER TABLE hosted_documents ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can read public documents
+CREATE POLICY "Anyone can read public documents"
+  ON hosted_documents FOR SELECT
+  USING (is_public = true);
+
+-- Users can read their own documents (even if private)
+CREATE POLICY "Users can read own documents"
+  ON hosted_documents FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own documents"
+  ON hosted_documents FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own documents"
+  ON hosted_documents FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own documents"
+  ON hosted_documents FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Service role bypass
+CREATE POLICY "Service role full access to hosted_documents"
+  ON hosted_documents FOR ALL
+  USING (auth.role() = 'service_role');

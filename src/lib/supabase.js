@@ -1,11 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
 
 /**
+ * Helper to getenv
+ */
+function getEnvValue(env, key) {
+    return (env && env[key]) || (typeof process !== 'undefined' ? process.env[key] : undefined)
+}
+
+/**
  * Create a Supabase admin client (service role key — full access).
  * Used on the backend to bypass RLS when needed.
  */
 export function createSupabaseAdmin(env) {
-    return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, {
+    const url = getEnvValue(env, 'SUPABASE_URL')
+    const key = getEnvValue(env, 'SUPABASE_SERVICE_KEY')
+    return createClient(url, key, {
         auth: { persistSession: false },
     })
 }
@@ -15,7 +24,9 @@ export function createSupabaseAdmin(env) {
  * This respects RLS policies — user can only access their own data.
  */
 export function createSupabaseClient(env, token) {
-    return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, {
+    const url = getEnvValue(env, 'SUPABASE_URL')
+    const key = getEnvValue(env, 'SUPABASE_SERVICE_KEY')
+    return createClient(url, key, {
         auth: { persistSession: false },
         global: {
             headers: { Authorization: `Bearer ${token}` },
