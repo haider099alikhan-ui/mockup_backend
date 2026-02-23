@@ -47,7 +47,9 @@ user.put('/profile', async (c) => {
         .select()
         .single()
 
-    if (error) return c.json({ error: error.message }, 500)
+    if (error) {
+        return c.json({ error: error.message }, 500)
+    }
     return c.json({ profile: data })
 })
 

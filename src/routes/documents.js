@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { createSupabaseAdmin } from '../lib/supabase.js'
+import { createSupabaseAdmin, createSupabaseClient } from '../lib/supabase.js'
 
 const documents = new Hono()
 
@@ -7,7 +7,7 @@ const documents = new Hono()
 documents.get('/', async (c) => {
     try {
         const user = c.get('user')
-        const supabase = createSupabaseAdmin(c.env)
+        const supabase = createSupabaseClient(c.env, c.get('token'))
 
         const { data, error } = await supabase
             .from('hosted_documents')
@@ -29,7 +29,7 @@ documents.get('/:id', async (c) => {
     try {
         const user = c.get('user')
         const id = c.req.param('id')
-        const supabase = createSupabaseAdmin(c.env)
+        const supabase = createSupabaseClient(c.env, c.get('token'))
 
         const { data, error } = await supabase
             .from('hosted_documents')
@@ -52,7 +52,7 @@ documents.post('/', async (c) => {
     try {
         const user = c.get('user')
         const body = await c.req.json()
-        const supabase = createSupabaseAdmin(c.env)
+        const supabase = createSupabaseClient(c.env, c.get('token'))
 
         const { type, title, content, is_public = false } = body
 
@@ -92,7 +92,7 @@ documents.put('/:id', async (c) => {
         const user = c.get('user')
         const id = c.req.param('id')
         const body = await c.req.json()
-        const supabase = createSupabaseAdmin(c.env)
+        const supabase = createSupabaseClient(c.env, c.get('token'))
 
         const { type, title, content, is_public } = body
 
@@ -127,7 +127,7 @@ documents.delete('/:id', async (c) => {
     try {
         const user = c.get('user')
         const id = c.req.param('id')
-        const supabase = createSupabaseAdmin(c.env)
+        const supabase = createSupabaseClient(c.env, c.get('token'))
 
         const { error } = await supabase
             .from('hosted_documents')
