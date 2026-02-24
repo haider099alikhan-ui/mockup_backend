@@ -20,7 +20,7 @@ app.use('*', cors({
             return origin
         }
 
-        if (origin === envVal) {
+        if (origin === envVal || origin === 'https://mockup-frontend-two.vercel.app') {
             return origin
         }
 

@@ -3,3 +3,4 @@
 api_test_script.js
 test_db.js
 .DS_Store
+node_modules/
